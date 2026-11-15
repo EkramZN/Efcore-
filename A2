@@ -1,0 +1,127 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
+
+// --- Data Annotations Entities ---
+[Table("Eventorganizers")]
+public class Organizer
+{
+    [Key]
+    public int Id { get; set; }
+
+    [Required, MaxLength(100)]
+    public string Name { get; set; }
+
+    [MaxLength(150)]
+    public string CompanyName { get; set; }
+
+    public bool IsVerified { get; set; }
+
+    // Navigation property for 1-to-1
+    public OrganizerProfile Profile { get; set; }
+    
+    // Navigation property for 1-to-many
+    public List<Event> Events { get; set; }
+}
+
+public class Attendee
+{
+    [Key]
+    public int Id { get; set; }
+
+    [Required, MaxLength(150)]
+    public string FullName { get; set; }
+
+    [Required, MaxLength(200)]
+    public string Email { get; set; }
+
+    [Required, MaxLength(150)]
+    public string Street { get; set; }
+
+    [Required, MaxLength(100)]
+    public string City { get; set; }
+
+    [Required, MaxLength(100)]
+    public string Country { get; set; }
+
+    [Required, MaxLength(20), Column("ZipCode")]
+    public string PostalCode { get; set; }
+
+    [NotMapped]
+    public string FullAddress => $"{Street}, {City}, {Country} - {PostalCode}";
+
+    public Badge Badge { get; set; }
+}
+
+// --- Fluent API Entities ---
+public class OrganizerProfile
+{
+    public int Id { get; set; }
+    public string Biography { get; set; }
+    public string WebsiteLink { get; set; }
+    public string LogoUrl { get; set; }
+
+    public int OrganizerId { get; set; }
+    public Organizer Organizer { get; set; }
+}
+
+public class Event
+{
+    public int Id { get; set; }
+    public string Title { get; set; }
+    public string Description { get; set; }
+    public DateTime StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
+    public int MaxAttendees { get; set; }
+
+    public int OrganizerId { get; set; }
+    public Organizer Organizer { get; set; }
+}
+
+public class Badge
+{
+    public int Id { get; set; }
+    public string BadgeNumber { get; set; }
+    public DateTime IssuedDate { get; set; }
+    public string Tier { get; set; } // Standard or VIP
+
+    public int AttendeeId { get; set; }
+    public Attendee Attendee { get; set; }
+}
+
+// --- DbContext & Fluent API Configuration ---
+public class EventHubContext : DbContext
+{
+    public DbSet<Organizer> Organizers { get; set; }
+    public DbSet<OrganizerProfile> OrganizerProfiles { get; set; }
+    public DbSet<Event> Events { get; set; }
+    public DbSet<Attendee> Attendees { get; set; }
+    public DbSet<Badge> Badges { get; set; }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.UseSqlServer("Server=.\\SQLEXPRESS;Database=EventHubDb;Trusted_Connection=True;TrustServerCertificate=True;");
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        // Organizer to Profile (One-to-One) configured in OnModelCreating
+        modelBuilder.Entity<Organizer>()
+            .HasOne(o => o.Profile)
+            .WithOne(p => p.Organizer)
+            .HasForeignKey<OrganizerProfile>(p => p.OrganizerId);
+
+        // Attendee to Badge (One-to-One) using separate configuration class approach (or direct here)
+        modelBuilder.Entity<Attendee>()
+            .HasOne(a => a.Badge)
+            .WithOne(b => b.Attendee)
+            .HasForeignKey<Badge>(b => b.AttendeeId);
+            
+        modelBuilder.Entity<Organizer>()
+            .HasMany(o => o.Events)
+            .WithOne(e => e.Organizer)
+            .HasForeignKey(e => e.OrganizerId);
+    }
+}
